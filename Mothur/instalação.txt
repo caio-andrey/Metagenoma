@@ -1,0 +1,3 @@
+instalar mothur
+
+sudo apt install mothur

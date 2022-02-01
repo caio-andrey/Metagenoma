@@ -1,0 +1,229 @@
+---
+title: "Phyloseq_Lotus_16s"
+author: "Caio Andrey"
+date: "01/07/2021"
+output: html_document
+---
+#Tutorial retirado: https://vaulot.github.io/tutorials/Phyloseq_tutorial.html
+#Phyloseq para analisar os dados do lotus retirados da planilha Phyloseq.r
+#Para instalar o Phyloseq
+```{a,include=FALSE}
+install.packages('BiocManager')
+library(BiocManager)
+BiocManager::install("phyloseq")
+library(phyloseq)
+```
+
+#Carregar bibliotecas necessarias
+
+```{b,include=FALSE}
+library(ggplot2) #Graficos
+library(readxl) #Importar arquivos excel
+library(dplyr) #Filtrar e formatar data frames
+library(tibble) #Para converter colunas e linhas
+library(phyloseq) 
+```
+
+CAMINHO PARA AS TABELAS
+setwd("Projetos/FACEPE/output_lotus2/Phyloseq")
+#São necessárias três tabelas
+#OTU
+#Taxonomia
+#Amostras
+
+#Add as tabelas ao R
+#Dica: Se os seus dados estão na mesma tabela, usar o argumento (sheet ="nome da pagina")
+#Lembrar que a coluna de OTU na tabela tem que ta otu em minisculo, na tabela de Tax, na primeira coluna tem que ta tax, na Samples tem que ta sample
+```{c, include=FALSE}
+otu_mat<- read_excel("OTU.xlsx")
+tax_mat<- read_excel("TAX.xlsx")
+samples_df <- read_excel("Amostras.xlsx")
+```
+
+#Os objetos Phyloseq precisam ter row.names
+#Definir os nomes das linhas da coluna de todas as tabelas
+```{d, include=FALSE}
+ otu_mat <- otu_mat %>%
+ tibble::column_to_rownames("otu") 
+ tax_mat <- tax_mat %>% 
+ tibble::column_to_rownames("tax")
+ samples_df <- samples_df %>% 
+ tibble::column_to_rownames("sample") 
+```
+
+#Transforme-se em matrizes otu e tax (a tabela de amostra pode ser deixada como quadro de dados)
+
+```{e, include=FALSE}
+otu_mat <- as.matrix(otu_mat)
+tax_mat <- as.matrix(tax_mat)
+
+```
+
+#Transformar em objetos do phyloseq
+
+```{f}
+otu = otu_table (otu_mat, taxa_are_rows =TRUE) #Resolvido
+tax = tax_table(tax_mat) #Resolvido
+samples = sample_data(samples_df) #Resolvido
+
+carbom = phyloseq(otu,tax, samples)
+carbom
+```
+
+#Vizualizar os dados
+
+```{g}
+sample_names(carbom) # Quantas amostra tem e quem são
+rank_names(carbom) #Quais grupos temos de taxons
+sample_variables(carbom) #Colunas que temos na nossas amostras=samples
+```
+
+#Manter so os taxons de interesse para as analises 
+#No caso dessa analise foi as 10 primeiras e mais abundantes (generos)
+#E foi criado outra divisão com as familias mais abundantes (familias)
+#Obs: Pode trocar a os nomes de mais abundante para mais importante, por exemplo
+#Obs2: A proxima etapa normalmente da erro e o Phylum mostra certo só os quero, mas ao rodar os outros codigos,nesse caso, Family e Genus, msm eu escolhendo quais mostrar, acaba mostrando todos, sendo minha solucao rodar o script para cada grupo que quero mostrar, sem rodar as partes dos outros
+```{i}
+ #carbom = subset_taxa(carbom, Phylum %in% c("Proteobacteria", "Firmicutes", "Actinobacteria", "Bacteroidetes", "Verrucomicrobia", "Tenericutes"))
+
+#carbom = subset_taxa(carbom, !(Family %in% c("Lactobacillaceae", "Acetobacteraceae", "Leuconostocaceae", "Coriobacteriaceae", "Neisseriaceae")))
+
+#carbom = subset_taxa(carbom, !(Genus %in% c("Lactobacillus", "Snodgrassella", " Bombella", "Rosenbergiella", "Fructobacillus", "Acinetobacter", "Bdellovibrio", "Permianibacter", "Acidovorax", "Pseudomonas")))
+
+carbom = subset_taxa(carbom,Family %in% c("Lactobacillaceae", "Acetobacteraceae", "Leuconostocaceae", "Coriobacteriaceae", "Neisseriaceae"))
+```
+
+#Normalizar os dados
+```{h}
+total=median(sample_sums(carbom))
+standf= function(x, t=total) round(t*(x/sum(x)))
+carbom = transform_sample_counts(carbom, standf)
+```
+
+#Grafico de barras
+#Nesse caso continuo usando o tax Family, que da mais informações
+#Para retirar a notação cientifica do grafico rodar esse codigo: "options(scipen = 999)"
+```{i}
+plot_bar(carbom, fill = "Family") + 
+ geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack")
+
+carbom_fraction <- merge_samples(carbom, "LocalidadeCidade") #Criar um carbom com variavel dos metadados
+
+ plot_bar(carbom_fraction, fill = "Family") + 
+ geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack")+ theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust = 1))
+``` 
+
+#Fazer um grafico usando o facet_grid 
+#Utilizei o carbom e não o carbom_fraction
+```{j}
+#plot_bar(carbom_fraction, x="Family", fill = "Family", facet_grid = TipoBioma~LocalidadeCidade) + geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack") + scale_y_continuous(name="Abundance", labels = scales::comma) #Termo scale_y_cotniuos usado para tirar a aproximação da notação cientifca do grafico se não quiser usar o "options(scipen = 999)"
+
+
+plot_bar(carbom, x="Family", fill = "Family") + geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack")+facet_wrap(~TipoBioma) #Utilçizado a ferramenta "facet_wrap" para separar em variaveis, no caso bioma e cidade
+``` 
+
+
+
+#Mara de calor(HeatMaps)
+```{i}
+plot_heatmap(carbom, method = "NMDS", distance = "bray") #Para plotar todos os dados, mas fica ruim de ver
+
+#É muito bagunçado. É melhor considerar apenas as OTUs mais abundantes para mapas de calor. Por exemplo, só se pode tomar OTUs que representam pelo menos 20% das leituras em pelo menos uma amostra. Lembre-se de que normalizamos todos os exemplos para o número médio de leituras (total). Ficamos com apenas 33 OTUS, o que torna a leitura muito mais fácil.
+
+
+ carbom_abund <- filter_taxa(carbom, function(x) sum(x > total*0.20) > 0, TRUE) #Para filtrar
+ 
+  carbom_abund #Para vizualizar a quantidade de taxons
+  
+otu_table(carbom_abund)[1:8, 1:5] #Outra forma de ver
+
+
+plot_heatmap(carbom_abund, method = "NMDS", distance = "bray") #Só com os mais abundantes utilizando o metodo de distancia de Bray
+
+
+
+#Muitas distâncias internas diferentes podem ser usadas
+
+dist_methods <- unlist(distanceMethodList) 
+print(dist_methods) #Para ver as possibilidades de metodos de distancia, perguntar a day qual melhor
+
+
+#Você também pode construir suas próprias distâncias.
+
+#Para os vetores xey, os termos “quadráticos” são J = soma (x * y), A = soma (x ^ 2), B = soma (y ^ 2) e os termos “mínimos” são J = soma (pmin (x , y)), A = soma (x) e B = soma (y), e os termos “binários” são qualquer um desses após transformar os dados na forma binária (número compartilhado de espécies e número de espécies para cada linha). Alguns exemplos:
+
+
+    #A + B-2 * J "quadrático" ao quadrado euclidiano
+
+    #A + B-2 * J “mínimo” Manhattan
+
+    #(A + B-2 * J) / (A + B) "mínimo" Bray-Curtis
+
+    #(A + B-2 * J) / (A + B) Sørensen “binário”
+
+    #(A + B-2 * J) / (A + BJ) Jaccard “binário”
+
+
+
+ plot_heatmap(carbom_abund, method = "NMDS", distance = "bray", 
+ taxa.label = "Family", taxa.order = "Family", 
+ low="beige", high="red", na.value="beige")
+
+
+
+``` 
+
+
+#Diversidade Alfa
+#Plotar o estimador de riqueza Chao1 e o estimador de diversidade de Shannon.
+
+```{j}
+plot_richness(carbom, measures=c( "Shannon", "Simpson", "InvSimpson"), scales= "fixed") #Usando os 3 maiores estimadores, argumento fixed alinha todos no mesmo valor, mas se trocar por free, cada um fica com seus valores
+
+
+#Vamo refazer o grafico mas dividindo cores por bioma por localidade
+
+ plot_richness(carbom, measures=c("Simpson", "Shannon", "InvSimpson"), x="LocalidadeCidade", color="TipoBioma")
+
+
+#Fazer do mesmo jeito mas bioma por sample
+plot_richness(carbom, measures=c("Simpson", "Shannon", "InvSimpson"), color="TipoBioma")
+
+
+``` 
+
+#Ordenação para calcular diversidade Beta
+#Faça uma análise multivariada com base na distância de Bray-Curtis e na ordenação NMDS.
+```{l}
+
+carbom.ord <- ordinate(carbom, "NMDS", "bray")
+
+#Traçar OTUs
+
+plot_ordination(carbom, carbom.ord, color="LocalidadeCidade", shape= "TipoBioma", title="OTUs")+geom_point(size=4)
+
+
+
+
+
+``` 
+
+#Análise de rede
+#Análise de rede simples
+
+```{m}
+
+ plot_net(carbom, distance = "(A+B-2*J)/(A+B)", type = "taxa", 
+ maxdist = 0.7, color="Family", point_label="Family")
+
+#Isso é muito confuso. Vamos torná-lo mais simples, usando apenas OTUs principais
+
+
+
+ plot_net(carbom_abund, distance = "(A+B-2*J)/(A+B)", type = "taxa", 
+ maxdist = 0.8, color="Family", point_label="Family") 
+
+
+
+
+```

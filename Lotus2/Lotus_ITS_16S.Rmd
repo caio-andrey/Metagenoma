@@ -1,0 +1,344 @@
+---
+title: "Lotus_ITS_Básico"
+author: "Caio Andrey"
+date: "06/11/2021"
+output: html_document
+---
+
+VAMO LA CARALHO QUE HOJE EU TO GENIAL
+
+Quanto você rodar dados de metabarcode (seja ITS ou 16s) no programa Lotus, analise de diversidade precisa ser feita posteriormente no Rstudio. No arquivo de output que sai do lotus tem um arquivo chamado "phyloseq.Rdata", dentro dele existe todas as planilhas necessárias para as analises. Após você abrir esse arquivo, ele vai se chamar de "physeq" dentro do R, quando abrir ele vai observar que existe todas as planilhas. Agora o trabalho vai ser add elas ao phyloseq, como objetos do phyloseq. Para ajeitar a tabela de output por fora, é preciso salvar o arquivo como .csv e o separador de texto como ";".
+
+```{r setup, include=FALSE}
+load("/home/c_andrey/Projetos/FACEPE/output_lotus2/Output_LotusITS/phyloseq.Rdata") #Carregar os dados do lotus
+
+setwd("Projetos/FACEPE/output_lotus2/Phyloseq")
+
+otu = otu_table(physeq@otu_table, taxa_are_rows = TRUE) #A primeira vou a tabela de OTU, aqui usamos o "@" já que a planilha de otu ta dentro do physeq
+
+tax = tax_table(physeq@tax_table) #A tabela de taxonomia
+
+sample = read.csv(file = "Amostras.csv") #Add os metadados por fora, já que são mais completos que o que sai como output do lotus é pobre de recurso
+
+samples = sample_data(sample) #A tabela com as amostras 
+
+carbom = phyloseq(otu, tax, samples) #Aqui criamos um conjunto de dados
+carbom #Para visualizar o seu conjunto´
+```
+
+Vizualizar os dados
+
+```{h setup, include=FALSE}
+sample_names(carbom) # Quantas amostra tem e quem são
+rank_names(carbom) #Quais grupos temos de taxons
+sample_variables(carbom) #Colunas que temos na nossas amostras=samples
+```
+
+Manter so os taxons de interesse para as analises No caso dessa analise foi as 5 primeiras e mais abundantes (generos) E foi criado outra divisão com as familias mais abundantes (familias) Obs: Pode trocar a os nomes de mais abundante para mais importante, por exemplo Obs2: A proxima etapa normalmente da erro e o Phylum mostra certo só os quero, mas ao rodar os outros codigos,nesse caso, Family e Genus, msm eu escolhendo quais mostrar, acaba mostrando todos, sendo minha solucao rodar o script para cada grupo que quero mostrar, sem rodar as partes dos outros
+
+```{i}
+carbom = subset_taxa(carbom, Genus %in% c( "Zygosaccharomyces", "Candida", "Lachancea", "Malassezia", "Meyerozyma", "Aspergillus", "Starmerella", "Sterigmatomyces"))
+
+carbom = subset_taxa(carbom,Family %in% c("Saccharomycetaceae", "Malasseziaceae", "Aspergillaceae", "Debaryomycetaceae", "Botryosphaeriaceae"))
+```
+
+Normalizar os dados
+
+```{h}
+total=median(sample_sums(carbom))
+standf= function(x, t=total) round(t*(x/sum(x)))
+carbom = transform_sample_counts(carbom, standf)
+```
+
+Foi observado que no grafico existe amostras que contem "NA" o que vai gerar um problema para fazer as proximas analises. Para resolver isso vamo fazer o seguinte
+
+```{i}
+sample_sums(carbom) #Para ver quais amostras estão com NA
+
+carbom = prune_samples(sample_sums(carbom)>=20, carbom) #Remova as amostras que têm menos de 20 leituras, como no nosso caso esta com NA, foi retirada as tres que queriamos
+
+```
+
+Grafico de barras Nesse caso continuo usando o tax Family, que da mais informações Para retirar a notação cientifica do grafico rodar esse codigo: "options(scipen = 999)"
+
+```{i}
+plot_bar(carbom, fill = "Genus") + 
+ geom_bar(aes(color=Genus, fill=Genus), stat="identity", position="stack") + xlab("Amostras") + ylab("Abundância")
+
+plot_bar(carbom, fill = "Family") + 
+ geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack")
+
+carbom_fraction = merge_samples(carbom, "LocalidadeCidade") #Criar um carbom com variavel dos metadados 
+
+ plot_bar(carbom_fraction, fill = "Genus") + 
+ geom_bar(aes(color=Genus, fill=Genus), stat="identity", position="stack")+ theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust = 0.5))+ xlab("Biome") 
+ 
+ 
+ 
+ abundace_bioma_ingles
+```
+
+Fazer um grafico usando o facet_grid Utilizei o carbom e não o carbom_fraction POR ENQUANTO NADA DISSO VAI SER RODADO POIS NÃO TEMOS METADADOS
+
+```{j}
+#plot_bar(carbom_fraction, x="Family", fill = "Family", facet_grid = TipoBioma~LocalidadeCidade) + geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack") + scale_y_continuous(name="Abundance", labels = scales::comma) #Termo scale_y_cotniuos usado para tirar a aproximação da notação cientifca do grafico se não quiser usar o "options(scipen = 999)"
+
+
+plot_bar(carbom, x="Family", fill = "Family") + geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack")+facet_wrap(~LocalidadeCidade) #Utilçizado a ferramenta "facet_wrap" para separar em variaveis, no caso bioma e cidade
+```
+
+Mara de calor(HeatMaps)
+
+```{i}
+plot_heatmap(carbom, method = "NMDS", distance = "bray") #Para plotar todos os dados, mas fica ruim de ver
+
+#É muito bagunçado. É melhor considerar apenas as OTUs mais abundantes para mapas de calor. Por exemplo, só se pode tomar OTUs que representam pelo menos 20% das leituras em pelo menos uma amostra. Lembre-se de que normalizamos todos os exemplos para o número médio de leituras (total). Ficamos com apenas 33 OTUS, o que torna a leitura muito mais fácil.
+
+
+ carbom_abund = filter_taxa(carbom, function(x) sum(x > total*0.20) > 0, TRUE) #Para filtrar
+ 
+  carbom_abund #Para vizualizar a quantidade de taxons
+  
+otu_table(carbom_abund)[1:8, 1:5] #Outra forma de ver
+
+
+plot_heatmap(carbom_abund, method = "NMDS", distance = "bray") #Só com os mais abundantes utilizando o metodo de distancia de Bray
+
+
+
+#Muitas distâncias internas diferentes podem ser usadas
+
+dist_methods = unlist(distanceMethodList) 
+print(dist_methods) #Para ver as possibilidades de metodos de distancia, perguntar a day qual melhor
+
+
+#Você também pode construir suas próprias distâncias.
+
+#Para os vetores xey, os termos “quadráticos” são J = soma (x * y), A = soma (x ^ 2), B = soma (y ^ 2) e os termos “mínimos” são J = soma (pmin (x , y)), A = soma (x) e B = soma (y), e os termos “binários” são qualquer um desses após transformar os dados na forma binária (número compartilhado de espécies e número de espécies para cada linha). Alguns exemplos:
+
+
+    #A + B-2 * J "quadrático" ao quadrado euclidiano
+
+    #A + B-2 * J “mínimo” Manhattan
+
+    #(A + B-2 * J) / (A + B) "mínimo" Bray-Curtis
+
+    #(A + B-2 * J) / (A + B) Sørensen “binário”
+
+    #(A + B-2 * J) / (A + BJ) Jaccard “binário”
+
+
+
+ plot_heatmap(carbom_abund, method = "NMDS", distance = "bray", 
+ taxa.label = "Family", taxa.order = "Family", 
+ low="beige", high="red", na.value="beige")
+
+
+
+```
+
+Diversidade Alfa Plotar o estimador de riqueza Chao1 e o estimador de diversidade de Shannon. PRA USAR COMPLETO PRECISA DOS METADADOS
+
+```{j}
+plot_richness(carbom, measures=c( "Observed", "Chao1", "InvSimpson", "Shannon"), scales= "fixed") #Usando os 3 maiores estimadores, argumento fixed alinha todos no mesmo valor, mas se trocar por free, cada um fica com seus valores
+
+
+#Vamo refazer o grafico mas dividindo cores por bioma por localidade
+
+plot_richness(carbom, measures=c("Observed", "Chao1", "InvSimpson", "Shannon"), x="LocalidadeCidade", color="LocalidadeCidade") + xlab("Biome") + theme(legend.position = "none") #Ingles
+
+
+plot_richness(carbom, measures=c("Observed", "Chao1", "InvSimpson", "Shannon"), x="LocalidadeCidade", color="LocalidadeCidade") + xlab("Bioma") +ylab("Mensuração da Diversidade Alfa") + theme(legend.position = "none") # Portugues
+
+#Fazer do mesmo jeito mas bioma por sample
+plot_richness(carbom, measures=c( "InvSimpson"), color="LocalidadeCidade") + xlab("Samples") + theme(legend.title=element_blank()) #Ingles
+
+plot_richness(carbom, measures=c( "InvSimpson"), color="LocalidadeCidade") + xlab("Amostras") + ylab("Mensuração da Diversidade Alfa") + theme(legend.title=element_blank())  #Portugues
+
+plot_richness(carbom, measures=c( "Chao1"), color="LocalidadeCidade") + xlab("Samples") + theme(legend.title=element_blank())  #Ingles
+plot_richness(carbom, measures=c( "Chao1"), color="LocalidadeCidade") + xlab("Amostras") + ylab("Mensuração da Diversidade Alfa") + theme(legend.title=element_blank())  #Portugues
+
+plot_richness(carbom, measures=c( "Observed"), color="LocalidadeCidade") + xlab("Samples") + theme(legend.title=element_blank())  #Ingles
+plot_richness(carbom, measures=c( "Observed"), color="LocalidadeCidade") + xlab("Amostras") + ylab("Mensuração da Diversidade Alfa") + theme(legend.title=element_blank())  #Portugues
+
+
+plot_richness(carbom, measures=c( "Shannon"), color="LocalidadeCidade") + xlab("Samples") + theme(legend.title=element_blank())  #Ingles
+plot_richness(carbom, measures=c( "Shannon"), color="LocalidadeCidade") + xlab("Amostras") + ylab("Mensuração da Diversidade Alfa") + theme(legend.title=element_blank())  #Portugues
+
+
+```
+
+Vamos agora criar as tabelas com os dados de cada diverisdade alfa gerada Nesse caso vamos usar Chao1, InvSimpson e Observed
+
+```{j}
+estimativas_diverisdade = estimate_richness(carbom, split = TRUE, measures = c("Observed", "Chao1", "InvSimpson", "Shannon"))
+
+write.csv(estimativas_diverisdade, "Estimativas_Diversidade.csv", row.names = TRUE) #Exportar dados das estimativas em forma de tabela .csv
+```
+
+Ordenação para calcular diversidade Beta Faça uma análise multivariada com base na distância de Bray-Curtis e na ordenação NMDS.
+
+```{l}
+
+carbom.ord = ordinate(carbom, "NMDS", "bray") #Mostra as analisese de stress 
+
+carbom.ord #Para pegar os dados de estresse
+
+#Traçar OTUs
+
+plot_ordination(carbom, carbom.ord, color="LocalidadeCidade", shape= "LocalidadeCidade", title="Non-metric multidimensional scaling (Bray-Curtis)")+geom_point(size=4)+ theme(legend.title=element_blank())  #Ingles
+
+
+plot_ordination(carbom, carbom.ord, color="LocalidadeCidade", shape= "LocalidadeCidade", title="Análise Multivariada (Bray-Curtis)")+geom_point(size=4)+ theme(legend.title=element_blank()) #Portugues
+
+
+```
+
+Analise de PERMANOVA para o NMDS
+
+```{l}
+
+dist.bray = vegdist(carbom@otu_table, method = "bray", binary = TRUE)
+
+carbom.bray = metaMDS(dist.bray, trymax = 10)
+
+plot(carbom.bray, type = "t")
+
+
+
+
+```
+
+
+Analise de ANOVA A função do R que executa a ANOVA é a aov. Nessa função temos como argumentos nossa a variável resposta(mensuração diversidade alfa), variável preditora (Amostra) e nossa planilha de dados, que nesse caso foi as estimativas (estima)
+
+```{h}
+estima = read.csv(file = "Estimativas_Diversidade.csv")
+
+model_observed = aov(Observed ~ Bioma, data = estima)
+model_chao1 = aov(Chao1 ~ Bioma, data = estima)
+model_invsimpson = aov(InvSimpson ~ Bioma, data = estima)
+model_shannon = aov(Shannon ~ Bioma, data = estima)
+
+model_observed
+model_chao1
+model_invsimpson
+model_shannon
+# Essa função nos retorna alguns elementos:
+#Em Call temos a fórmula que o R usou para executar a ANOVA
+#Em Terms temos algumas estatísticas importantes, sendo a primeira coluna referente as análises dentro dos grupos e a segunda coluna referente a análises entre dos grupos
+#Sum of Squares : soma dos quadrados
+#Df: graus de liberdade
+#Residual standard error: Erro padrão dos resíduos. Calculado a partir da raiz quadrada da divisão entre a soma dos quadrados dos resíduos e seus graus de liberdade.
+
+
+#Com a função summary conseguimos mais informações:
+summary(model_observed)
+summary(model_chao1)
+summary(model_invsimpson)
+summary(model_shannon)
+#Temos agora informação de:
+#Mean sq: quadrados médios.
+#F value: estatística F.
+#Pr(>F): valor-p para a estatística F.
+#A partir da estatística F e seu valor-p abaixo de 0.05 podemos temos embasamento estatístico para afirmar com grande confiança que as médias de Cortisol dos macacos difere entre os locais analisado.
+
+#Testando as premissas da ANOVA
+#Embora tenhamos encontrado que há um diferença entre as médias, o resultado da ANOVA só é robusto se as premissas do testes forem satisfeitas.
+#Homogeneidade das amostras
+#Uma vez que a ANOVA tem como premissa a homogeneidade dos dados, podemos testar se nossos dados são adequados nesse quesito com o Teste de Levene para homocedasticia. Para isso precisaremos do pacote car:
+
+library(car)
+leveneTest(Observed ~ Bioma, data = estima)
+leveneTest(Chao1 ~ Bioma, data = estima)
+leveneTest(InvSimpson ~ Bioma, data = estima)
+leveneTest(Shannon ~ Bioma, data = estima)
+#A hipótese nula do Teste de Levene é de que não há diferença entre as variâncias dos grupos. O valor-p maior do que 0.05 nos dá uma confiança estatística para afirmar que as variâncias são de fato iguais e portanto nossos dados são homogêneos.
+
+#Normalidade dos resíduos
+#Já premissa da ANOVA referente a normalidade dos resíduos pode ser testada através do teste de Shapiro-Wilk:
+
+shapiro.test(resid(model_observed))
+shapiro.test(resid(model_chao1))
+shapiro.test(resid(model_invsimpson))
+shapiro.test(resid(model_shannon))
+#A hipótese nula do Teste de Shapiro-Wilk é de que não há diferença entre a nossa distribuição dos dados e a distribuição normal. O valor-p maior do que 0.05 nos dá uma confiança estatística para afirmar que as distribuição dos nossos resíduos não difere da distribuição normal.
+#Dessa forma nossos dados satisfazem todas as premissas da ANOVA e portanto, o resultado da nossa ANOVA são válidos.
+
+
+#omparação de médias par-a-par
+#ando fizemos a ANOVA, rejeitamos a hipótese nula de que todas as médias são iguais, no entanto, não sabemos exatamente quais grupos têm médias diferentes. Para avaliar isso podemos fazer um Teste de Tukey:
+```
+
+Arvore Filogenetica
+
+```{g}
+
+plot_tree(physeq@phy_tree)
+
+
+
+```
+
+
+
+
+Dendograma 
+Em construção ainda!!!
+```{g}
+
+Jaccard = distance(carbom, "jaccard") #Criando uma matrix de distancia
+
+
+GP = hclust(Jaccard, method = "average") 
+#Esta é a chamada de agrupamento hierárquico real, especificando o agrupamento médio
+
+plot(GP, main = "Dendograma", hang = -1)
+
+# tweeking some parameters
+op = par(bg = "#DDE3CA")
+plot(GP, col = "#487AA1",main = "Dendrogram (Jaccard)", col.main = "#45ADA8", col.lab = "#7C8071",col.axis = "#F38630", lwd = 4, lty = 6, sub = "")
+
+
+GPD = as.dendrogram(GP)
+
+
+# vector of colors labelColors = c('red', 'blue', 'darkgreen', 'darkgrey',
+# 'purple')
+labelColors = c("green", "red", "blue", "black","orange", "purple", "brown", "yellow"  )
+# cut dendrogram in 4 clusters
+clusMember = cutree(GP, 8)
+# function to get color labels
+colLab <- function(n) {
+    if (is.leaf(n)) {
+        a <- attributes(n)
+        labCol <- labelColors[clusMember[which(names(clusMember) == a$label)]]
+        attr(n, "nodePar") <- c(a$nodePar, lab.col = labCol)
+    }
+    n
+}
+# using dendrapply
+clusDendro = dendrapply(GPD, colLab)
+# make plot
+plot(clusDendro, main = "Dendrogram (Jaccard)",  col = "#487AA1", col.main = "black", col.lab = "#7C8071",col.axis = "black", lwd = 3, lty = 2, sub = "")
+
+
+# Function to color branches
+colbranches <- function(n, col)
+  {
+  a <- attributes(n) # Find the attributes of current node
+  # Color edges with requested color
+  attr(n, "edgePar") <- c(a$edgePar, list(col=col, lwd=2))
+  n # Don't forget to return the node!
+  }
+
+# Color the first sub-branch of the first branch in red,
+# the second sub-branch in orange and the second branch in blue
+GPD[[1]][[1]] = dendrapply(GPD[[1]][[1]], colbranches, "red")
+GPD[[1]][[2]] = dendrapply(GPD[[1]][[2]], colbranches, "orange")
+GPD[[2]][[2]][[1]][[2]][[2]] = dendrapply(GPD[[2]][[2]][[1]][[2]][[2]], colbranches, "blue")
+
+# Plot
+plot(GPD)
+
+```
