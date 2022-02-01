@@ -5,7 +5,6 @@ date: "06/11/2021"
 output: html_document
 ---
 
-VAMO LA CARALHO QUE HOJE EU TO GENIAL
 
 Quanto você rodar dados de metabarcode (seja ITS ou 16s) no programa Lotus, analise de diversidade precisa ser feita posteriormente no Rstudio. No arquivo de output que sai do lotus tem um arquivo chamado "phyloseq.Rdata", dentro dele existe todas as planilhas necessárias para as analises. Após você abrir esse arquivo, ele vai se chamar de "physeq" dentro do R, quando abrir ele vai observar que existe todas as planilhas. Agora o trabalho vai ser add elas ao phyloseq, como objetos do phyloseq. Para ajeitar a tabela de output por fora, é preciso salvar o arquivo como .csv e o separador de texto como ";".
 
