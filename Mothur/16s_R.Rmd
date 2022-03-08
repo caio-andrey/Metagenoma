@@ -1,0 +1,76 @@
+---
+title: "Mothur_16s_Phyloseq"
+author: "Caio Andrey"
+date: "09/02/2022"
+output: html_document
+---
+
+```{Introdução dos Dados setup, include=FALSE} 
+#Baseado no "https://norwegianveterinaryinstitute.github.io/BioinfTraining/phyloseq_tutorial.html"
+setwd("Projetos/Metagenoma_Day/Mothur_16s") #Definir o caminho, para mexer com os dados
+
+#Liberar os pacotes que são importantes
+library(ggplot2)
+library(phyloseq)
+library(cowplot)
+library(cowplot)
+library(vegan)
+library(scales)
+library(reshape2)
+library(grid)
+
+
+#Importar os dados 
+dado = import_mothur( mothur_group_file = "contigs.groups", mothur_shared_file = "shared_file.shared",mothur_constaxonomy_file = "constaxonomy_file.taxonomy", mothur_tree_file = "phylip.tre")
+
+
+plot_bar(dado, fill = "Rank5") + geom_bar(aes(color=Rank5, fill=Rank5), stat="identity", position="stack")
+
+
+plot_bar(dado, fill = "Rank6") + geom_bar(aes(color=Rank6, fill=Rank6), stat="identity", position="stack")
+
+
+Rank5 - Familia 
+Rank6 - Genero
+
+dado.genus = subset_taxa(dado, Rank6 %in% c( "Lactobacillales_unclassified", "Lactobacillus", "Bifidobacterium", "Lactobacillus", "Lactobacillaceae_unclassified", "Lactobacillus", "Lactobacillaceae_unclassified", "Acetobacteraceae_unclassified", "Floricoccus", "Acetobacteraceae_unclassified"))
+
+dado.familia = subset_taxa(dado, Rank5 %in% c( "Lactobacillales_unclassified", "Lactobacillaceae
+", "Bifidobacteriaceae
+", "Lactobacillaceae
+", "Lactobacillaceae
+", "Lactobacillaceae
+", "Lactobacillaceae
+", "Acetobacteraceae
+", "Streptococcaceae
+", "Acetobacteraceae
+"))
+
+plot_bar(dado.cortado, fill = "Rank6") + 
+ geom_bar(aes(color=Rank6, fill=Rank6), stat="identity", position="stack") + xlab("Amostras") + ylab("Abundância")
+
+```
+
+
+```{Importação dos Dados setup, include=FALSE} 
+
+#Importar as tabelas para o R
+sharedfile = "shared_file.shared"
+taxfile = "constaxonomy_file.taxonomy"
+treefile = "phylip.tree" 
+mapfile = read.csv("amostras.csv")
+groupfile = "contigs.groups"
+
+#Importar os dados para o phyloseq
+dado = import_mothur( mothur_group_file = "contigs.groups", 
+                      mothur_shared_file = "shared_file.shared",
+                      mothur_constaxonomy_file = "constaxonomy_file.taxonomy",
+                      mothur_tree_file = "phylip.tree")
+
+#É necessario modificar o arquivo de metadados
+
+
+
+
+
+```
